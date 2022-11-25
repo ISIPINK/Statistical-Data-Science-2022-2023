@@ -2,8 +2,8 @@
 title: "R Notebook"
 output: html_notebook
 ---
-
+# loading in the dataset
 ```{r}
-print("hello")
+cars_data<-read.csv("~/Statistical-Data-Science-Project-Academic-year-2022-2023/cars_data")
 ```
 
