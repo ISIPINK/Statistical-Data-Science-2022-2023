@@ -2,8 +2,73 @@
 title: "R Notebook"
 output: html_notebook
 ---
-# loading in the dataset
+
+# EDA 
+## loading data set
 ```{r}
-cars_data<-read.csv("~/Statistical-Data-Science-Project-Academic-year-2022-2023/cars_data")
+cars_data<-read.csv("~/GitHub/Statistical-Data-Science-Project-Academic-year-2022-2023/cars_data")
 ```
+
+## generate subset
+```{r}
+set.seed(180901)
+cars_data$euro_standard <- as.factor(cars_data$euro_standard)
+cars_data$transmission_type <- as.factor(cars_data$transmission_type)
+cars_data$fuel_type <- as.factor(cars_data$fuel_type)
+subset_cars = cars_data[sample(nrow(cars_data),3000,replace=FALSE),]
+```
+I reviewed the data set in a csv viewer to get a feel for it. Looks ok to me.
+
+## what can I plot? Are there missing values?
+
+```{r}
+names(cars_data)
+
+```
+
+```{r}
+str(cars_data)
+```
+
+```{r}
+sum(is.na(cars_data))
+```
+
+## univariate plots for factor types
+```{r}
+# (for future me) for loop doesnt work
+ggplot(cars_data ,aes(manufacturer)) + geom_bar(stat ="count")+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
+
+ggplot(cars_data ,aes(euro_standard)) + geom_bar(stat ="count")+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
+
+ggplot(cars_data ,aes(transmission_type)) + geom_bar(stat ="count")+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
+
+ggplot(cars_data ,aes(fuel_type)) + geom_bar(stat ="count")+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
+
+ggplot(cars_data ,aes(fuel_type)) + geom_bar(stat ="count")+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
+```
+
+## plots for numerical types
+
+```{r}
+ggplot(cars_data,aes(engine_capacity))+ geom_histogram()
+ggplot(cars_data,aes(urban_metric))+ geom_histogram()
+ggplot(cars_data,aes(extra_urban_metric))+ geom_histogram()
+ggplot(cars_data,aes(combined_metric))+ geom_histogram()
+selectNormalNoise = (60<cars_data$noise_level) & (cars_data$noise_level < 80)
+ggplot(cars_data[selectNormalNoise,],aes(noise_level))+ geom_histogram(bins = 15)
+ggplot(cars_data,aes(co2))+ geom_histogram()
+ggplot(cars_data,aes(co_emissions))+ geom_histogram()
+selectNormalNox = (cars_data$nox_emissions < 1000)
+ggplot(cars_data,aes(nox_emissions))+ geom_histogram()
+
+```
+
+
+
 
