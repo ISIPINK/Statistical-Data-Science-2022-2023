@@ -3,6 +3,10 @@ title: "R Notebook"
 output: html_notebook
 ---
 
+```{r}
+library(ggplot2)
+```
+
 # EDA 
 ## loading data set
 ```{r}
@@ -17,9 +21,38 @@ cars_data$transmission_type <- as.factor(cars_data$transmission_type)
 cars_data$fuel_type <- as.factor(cars_data$fuel_type)
 subset_cars = cars_data[sample(nrow(cars_data),3000,replace=FALSE),]
 ```
-I reviewed the data set in a csv viewer to get a feel for it. Looks ok to me.
+I reviewed the data set in a csv viewer to get a feel for it. Noise level has weird rounding thing going on.
 
-## what can I plot? Are there missing values?
+```{r}
+# what I expect:
+ggplot(subset_cars,aes(factor((urban_metric*10)%%10)))+ geom_bar()
+ggplot(subset_cars,aes(factor((combined_metric*10)%%10)))+ geom_bar()
+# weird rounding:
+ggplot(subset_cars,aes(factor((noise_level*10)%%10)))+ geom_bar()
+ggplot(subset_cars,aes(factor((co_emissions*10)%%10)))+ geom_bar()
+ggplot(subset_cars,aes(factor((nox_emissions*10)%%10)))+ geom_bar()
+# normal rounding:
+ggplot(subset_cars,aes(factor((co2*10)%%10)))+ geom_bar()
+
+```
+It would be interesting to see if rounding can be predicted or is usefull.
+## checking for duplicates
+
+```{r}
+#View(subset_cars[duplicated(subset_cars),])
+sum(duplicated(subset_cars))
+sum(duplicated(subset_cars["model"]))
+sum(duplicated(subset_cars[c("urban_metric", "noise_level", "co2")]))
+```
+OK some duplicates. In theory it shouldn't be impossible ... but IDK if this was intended when gathering the data ... A more in depth study of duplicates could be done using clustering techniques.
+
+## Are there missing values?
+
+```{r}
+sum(is.na(cars_data))
+```
+
+## what can I plot? 
 
 ```{r}
 names(cars_data)
@@ -30,13 +63,9 @@ names(cars_data)
 str(cars_data)
 ```
 
-```{r}
-sum(is.na(cars_data))
-```
-
 ## univariate plots for factor types
 ```{r}
-# (for future me) for loop doesnt work
+# (for future me) for loop doesn't work and dont plot model
 ggplot(cars_data ,aes(manufacturer)) + geom_bar(stat ="count")+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
 
@@ -49,9 +78,8 @@ ggplot(cars_data ,aes(transmission_type)) + geom_bar(stat ="count")+
 ggplot(cars_data ,aes(fuel_type)) + geom_bar(stat ="count")+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
 
-ggplot(cars_data ,aes(fuel_type)) + geom_bar(stat ="count")+
-  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
 ```
+Everything looks balanced minus the manufacturer. From my humble car knowledge I think that there are major differences between cars from different manufacturers (you shouldn't compare a Lamborghini with a mini it just has other stats). This probably gives a problem with balancing (whatever I mean). I'm not sure that the counts represents the amount of cars in Europe? Later I'll look into it.
 
 ## plots for numerical types
 
@@ -65,10 +93,31 @@ ggplot(cars_data[selectNormalNoise,],aes(noise_level))+ geom_histogram(bins = 15
 ggplot(cars_data,aes(co2))+ geom_histogram()
 ggplot(cars_data,aes(co_emissions))+ geom_histogram()
 selectNormalNox = (cars_data$nox_emissions < 1000)
-ggplot(cars_data,aes(nox_emissions))+ geom_histogram()
+ggplot(cars_data[selectNormalNox, ],aes(nox_emissions))+ geom_histogram()
 
 ```
+Everything looks skewed to the right minus the noise emissions (maybe this is because it is on a log scale?). I'll try transforming the noise. Then some outliers (points that ruined my plots so I filterd them out).
+```{r}
+selectBadRows <- !selectNormalNoise | !selectNormalNox
+selectNormalRows <- !selectBadRows
+#why doesn't this work?
+subset.bad <- subset_cars[selectBadRows, ]
+subset.trans <- subset_cars[selectNormalRows, ]
+subset.trans$noise_level <- exp(subset.trans$noise_level-70)
+```
 
+```{r}
+ggplot(subset.trans,aes(engine_capacity))+ geom_histogram()
+ggplot(subset.trans,aes(urban_metric))+ geom_histogram()
+ggplot(subset.trans,aes(extra_urban_metric))+ geom_histogram()
+ggplot(subset.trans,aes(combined_metric))+ geom_histogram()
+ggplot(subset.trans,aes(noise_level))+ geom_histogram(bins = 100)
+ggplot(subset.trans,aes(if (noise_level <500) noise_level else 550))+ geom_histogram(bins = 100)
+ggplot(subset.trans,aes(co2))+ geom_histogram()
+ggplot(subset.trans,aes(co_emissions))+ geom_histogram()
+ggplot(subset.trans,aes(nox_emissions))+ geom_histogram()
+```
 
-
-
+```{r}
+subset.trans[order(subset.trans$noise_level,decreasing = TRUE), c("manufacturer","noise_level" )][1:20, ]
+```
