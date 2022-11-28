@@ -5,6 +5,9 @@ output: html_notebook
 
 ```{r}
 library(ggplot2)
+library(robustbase)
+library(rrcov)
+library(reshape2)
 ```
 
 # EDA 
@@ -35,7 +38,7 @@ ggplot(subset_cars,aes(factor((nox_emissions*10)%%10)))+ geom_bar()
 ggplot(subset_cars,aes(factor((co2*10)%%10)))+ geom_bar()
 
 ```
-It would be interesting to see if rounding can be predicted or is usefull.
+It would be interesting to see if rounding can be predicted or is useful.
 ## checking for duplicates
 
 ```{r}
@@ -46,37 +49,39 @@ sum(duplicated(subset_cars[c("urban_metric", "noise_level", "co2")]))
 ```
 OK some duplicates. In theory it shouldn't be impossible ... but IDK if this was intended when gathering the data ... A more in depth study of duplicates could be done using clustering techniques.
 
+
 ## Are there missing values?
 
 ```{r}
-sum(is.na(cars_data))
+sum(is.na(subset_cars))
 ```
 
 ## what can I plot? 
 
 ```{r}
-names(cars_data)
+names(subset_cars)
 
 ```
 
 ```{r}
-str(cars_data)
+str(subset_cars)
 ```
 
 ## univariate plots for factor types
 ```{r}
 # (for future me) for loop doesn't work and dont plot model
-ggplot(cars_data ,aes(manufacturer)) + geom_bar(stat ="count")+
+ggplot(subset_cars ,aes(manufacturer)) + geom_bar(stat ="count")+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
 
-ggplot(cars_data ,aes(euro_standard)) + geom_bar(stat ="count")+
+ggplot(subset_cars ,aes(euro_standard)) + geom_bar(stat ="count")+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
 
-ggplot(cars_data ,aes(transmission_type)) + geom_bar(stat ="count")+
+ggplot(subset_cars ,aes(transmission_type)) + geom_bar(stat ="count")+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
 
-ggplot(cars_data ,aes(fuel_type)) + geom_bar(stat ="count")+
+ggplot(subset_cars ,aes(fuel_type)) + geom_bar(stat ="count")+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
+
 
 ```
 Everything looks balanced minus the manufacturer. From my humble car knowledge I think that there are major differences between cars from different manufacturers (you shouldn't compare a Lamborghini with a mini it just has other stats). This probably gives a problem with balancing (whatever I mean). I'm not sure that the counts represents the amount of cars in Europe? Later I'll look into it.
@@ -84,26 +89,25 @@ Everything looks balanced minus the manufacturer. From my humble car knowledge I
 ## plots for numerical types
 
 ```{r}
-ggplot(cars_data,aes(engine_capacity))+ geom_histogram()
-ggplot(cars_data,aes(urban_metric))+ geom_histogram()
-ggplot(cars_data,aes(extra_urban_metric))+ geom_histogram()
-ggplot(cars_data,aes(combined_metric))+ geom_histogram()
-selectNormalNoise = (60<cars_data$noise_level) & (cars_data$noise_level < 80)
-ggplot(cars_data[selectNormalNoise,],aes(noise_level))+ geom_histogram(bins = 15)
-ggplot(cars_data,aes(co2))+ geom_histogram()
-ggplot(cars_data,aes(co_emissions))+ geom_histogram()
-selectNormalNox = (cars_data$nox_emissions < 1000)
-ggplot(cars_data[selectNormalNox, ],aes(nox_emissions))+ geom_histogram()
-
+ggplot(subset_cars,aes(engine_capacity))+ geom_histogram()
+ggplot(subset_cars,aes(urban_metric))+ geom_histogram()
+ggplot(subset_cars,aes(extra_urban_metric))+ geom_histogram()
+ggplot(subset_cars,aes(combined_metric))+ geom_histogram()
+selectNormalNoise = (60<subset_cars$noise_level) & (subset_cars$noise_level < 80)
+ggplot(subset_cars[selectNormalNoise,],aes(noise_level))+ geom_histogram(bins = 15)
+ggplot(subset_cars,aes(co2))+ geom_histogram()
+ggplot(subset_cars,aes(co_emissions))+ geom_histogram()
+selectNormalNox = (subset_cars$nox_emissions < 1000)
+ggplot(subset_cars[selectNormalNox, ],aes(nox_emissions))+ geom_histogram()
 ```
 Everything looks skewed to the right minus the noise emissions (maybe this is because it is on a log scale?). I'll try transforming the noise. Then some outliers (points that ruined my plots so I filterd them out).
 ```{r}
 selectBadRows <- !selectNormalNoise | !selectNormalNox
 selectNormalRows <- !selectBadRows
-#why doesn't this work?
+#why doesn't this work? OK used cars_data instead of subset ...
 subset.bad <- subset_cars[selectBadRows, ]
 subset.trans <- subset_cars[selectNormalRows, ]
-subset.trans$noise_level <- exp(subset.trans$noise_level-70)
+subset.trans$noise_level <- 1.26^(subset.trans$noise_level-70)
 ```
 
 ```{r}
@@ -111,8 +115,7 @@ ggplot(subset.trans,aes(engine_capacity))+ geom_histogram()
 ggplot(subset.trans,aes(urban_metric))+ geom_histogram()
 ggplot(subset.trans,aes(extra_urban_metric))+ geom_histogram()
 ggplot(subset.trans,aes(combined_metric))+ geom_histogram()
-ggplot(subset.trans,aes(noise_level))+ geom_histogram(bins = 100)
-ggplot(subset.trans,aes(if (noise_level <500) noise_level else 550))+ geom_histogram(bins = 100)
+ggplot(subset.trans,aes(noise_level))+ geom_histogram(bins = 17)
 ggplot(subset.trans,aes(co2))+ geom_histogram()
 ggplot(subset.trans,aes(co_emissions))+ geom_histogram()
 ggplot(subset.trans,aes(nox_emissions))+ geom_histogram()
@@ -121,3 +124,101 @@ ggplot(subset.trans,aes(nox_emissions))+ geom_histogram()
 ```{r}
 subset.trans[order(subset.trans$noise_level,decreasing = TRUE), c("manufacturer","noise_level" )][1:20, ]
 ```
+## plots for comparing variables
+```{r}
+ggplot(subset.trans, aes(x = engine_capacity, y = co2, color = transmission_type)) + 
+  geom_jitter(alpha = 0.3, width = 100) +
+  facet_grid(~fuel_type)
+
+ggplot(subset.trans, aes(x = engine_capacity, y = nox_emissions, color = transmission_type)) + 
+  geom_jitter(alpha = 0.3, width = 100) +
+  facet_grid(~fuel_type)
+
+ggplot(subset.trans, aes(x = engine_capacity, y = urban_metric, color = fuel_type)) + 
+  geom_jitter(alpha = 0.3, width = 100)+
+  scale_color_manual(values=c("purple", "green"))
+
+ggplot(subset.trans, aes(x = urban_metric, y = co_emissions, color = euro_standard)) + 
+  geom_jitter(alpha = 0.3 ) 
+
+ggplot(subset.trans, aes(x = co2, y = urban_metric, color = combined_metric, alpha = extra_urban_metric)) + 
+  geom_jitter( width=30)+
+  scale_colour_gradientn(colours=rainbow(4))
+
+# a non linear jitter would be more appropriate ...
+ggplot(subset.trans, aes(x = engine_capacity, y = noise_level, color = transmission_type)) +
+  geom_jitter(alpha = 0.3, width=50, height = 0.3 ) +
+  facet_grid(~fuel_type)
+```
+These plot show that there are a lot of (near) linear relationships between variables and that the discrete variables are important. It makes it easy to find intresting rows.
+## intersting rows
+```{r}
+subset.trans[subset.trans$engine_capacity> 8000,]
+subset.trans[subset.trans$nox_emissions> 200 & subset.trans$fuel_type == "Petrol",]
+subset.trans[subset.trans$co2> 440,]
+```
+
+# pca
+## splitting into training and validation
+```{r}
+subset.transNoText <- subset.trans[ , -which(names(subset.trans) %in% c("manufacturer"
+,"model","description" ))]
+subset.transNoText <- na.omit(subset.transNoText)
+```
+
+```{r}
+# it looks complicated because I had a bug and now I dont want to touch it ...
+set.seed(180901)
+train_ind <- sample.int(n=nrow(subset.trans),size=1500,replace=F)
+subset.transNoText$inTrain = FALSE
+subset.transNoText[train_ind,]$inTrain = TRUE
+nrow(na.omit(subset.transNoText))
+Xtrain = subset.transNoText[subset.transNoText$inTrain,]
+Xtrain <- na.omit(Xtrain)
+Xval = subset.transNoText[!(subset.transNoText$inTrain),]
+Xval <- na.omit(Xval[!is.na(Xval),])
+nrow(Xtrain)
+nrow(Xval)
+```
+## PCA on training
+
+
+```{r}
+continousCols <- c("engine_capacity", "urban_metric", "extra_urban_metric", "combined_metric","co2", "noise_level", "co_emissions", "nox_emissions")
+
+ggplot(melt(round(covMcd(Xtrain[,continousCols], cor = TRUE)$cov,1)), 
+       aes(x = Var1, y= Var2, fill= value))+
+  geom_tile()+
+  geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
+  theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
+  scale_fill_gradient(low = "red", high = "green")
+
+ggplot(melt(round(covMcd(Xtrain[,continousCols], cor = TRUE)$cor,1)), 
+       aes(x = Var1, y= Var2, fill= value))+
+  geom_tile()+
+  geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
+  theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
+  scale_fill_gradient(low = "red", high = "green")
+
+
+ggplot(melt(round(cor(Xtrain[,continousCols]),1)), 
+       aes(x = Var1, y= Var2, fill= value))+
+  geom_tile()+
+  geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
+  theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
+  scale_fill_gradient(low = "red", high = "green")
+```
+From the heatmap of the covariance matrix we can conclude
+
+
+
+
+
+
+
+
+
+
+
+
+
