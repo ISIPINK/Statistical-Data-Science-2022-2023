@@ -84,7 +84,7 @@ ggplot(subset_cars ,aes(fuel_type)) + geom_bar(stat ="count")+
 
 
 ```
-Everything looks balanced minus the manufacturer. From my humble car knowledge I think that there are major differences between cars from different manufacturers (you shouldn't compare a Lamborghini with a mini it just has other stats). This probably gives a problem with balancing (whatever I mean). I'm not sure that the counts represents the amount of cars in Europe? Later I'll look into it.
+Everything looks balanced minus the manufacturer. From our humble car knowledge we think that there are major differences between cars from different manufacturers (you shouldn't compare a Lamborghini with a mini it just has other stats). This probably gives a problem with balancing (whatever we mean). We are not sure that the counts represents the amount of cars in Europe? Later we'll look into it.
 
 ## plots for numerical types
 
@@ -100,7 +100,7 @@ ggplot(subset_cars,aes(co_emissions))+ geom_histogram()
 selectNormalNox = (subset_cars$nox_emissions < 1000)
 ggplot(subset_cars[selectNormalNox, ],aes(nox_emissions))+ geom_histogram()
 ```
-Everything looks skewed to the right minus the noise emissions (maybe this is because it is on a log scale?). I'll try transforming the noise. Then some outliers (points that ruined my plots so I filterd them out).
+Everything looks skewed to the right minus the noise emissions (maybe this is because it is on a log scale?). I'll try transforming the noise. Then some outliers (points that ruined my plots so we filterd them out).
 ```{r}
 selectBadRows <- !selectNormalNoise | !selectNormalNox
 selectNormalRows <- !selectBadRows
@@ -150,7 +150,7 @@ ggplot(subset.trans, aes(x = engine_capacity, y = noise_level, color = transmiss
   geom_jitter(alpha = 0.3, width=50, height = 0.3 ) +
   facet_grid(~fuel_type)
 ```
-These plot show that there are a lot of (near) linear relationships between variables and that the discrete variables are important. It makes it easy to find intresting rows.
+These plot show that there are a lot of (near) linear relationships between variables and that the discrete variables are important. It makes it easy to find interesting rows.
 ## intersting rows
 ```{r}
 subset.trans[subset.trans$engine_capacity> 8000,]
@@ -158,7 +158,7 @@ subset.trans[subset.trans$nox_emissions> 200 & subset.trans$fuel_type == "Petrol
 subset.trans[subset.trans$co2> 440,]
 ```
 
-# pca
+# PCA
 ## splitting into training and validation
 ```{r}
 subset.transNoText <- subset.trans[ , -which(names(subset.trans) %in% c("manufacturer"
@@ -186,29 +186,148 @@ nrow(Xval)
 ```{r}
 continousCols <- c("engine_capacity", "urban_metric", "extra_urban_metric", "combined_metric","co2", "noise_level", "co_emissions", "nox_emissions")
 
+ggplot(melt(round(cov(Xtrain[,continousCols]),1)), 
+       aes(x = Var1, y= Var2, fill= value))+
+  geom_tile()+
+  geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
+  theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
+  scale_fill_gradient(low = "red", high = "green")+
+  ggtitle("covariance heatmap of continous var Xtrain")
+
 ggplot(melt(round(covMcd(Xtrain[,continousCols], cor = TRUE)$cov,1)), 
        aes(x = Var1, y= Var2, fill= value))+
   geom_tile()+
   geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
   theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
-  scale_fill_gradient(low = "red", high = "green")
-
-ggplot(melt(round(covMcd(Xtrain[,continousCols], cor = TRUE)$cor,1)), 
-       aes(x = Var1, y= Var2, fill= value))+
-  geom_tile()+
-  geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
-  theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
-  scale_fill_gradient(low = "red", high = "green")
-
+  scale_fill_gradient(low = "red", high = "green")+
+  ggtitle("robust cov heatmap of continous var Xtrain")
 
 ggplot(melt(round(cor(Xtrain[,continousCols]),1)), 
        aes(x = Var1, y= Var2, fill= value))+
   geom_tile()+
   geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
   theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
-  scale_fill_gradient(low = "red", high = "green")
+  scale_fill_gradient(low = "red", high = "green")+
+  ggtitle("cor heatmap of continous var Xtrain")
+
+ggplot(melt(round(covMcd(Xtrain[,continousCols], cor = TRUE)$cor,1)), 
+       aes(x = Var1, y= Var2, fill= value))+
+  geom_tile()+
+  geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)+
+  theme(axis.text.x=element_text(angle=45, hjust=1,vjust=1)) +
+  scale_fill_gradient(low = "red", high = "green")+
+  ggtitle("robust cor heatmap of continous var Xtrain")
+
+
 ```
-From the heatmap of the covariance matrix we can conclude
+
+From the variance heatmap it is clearly seen that pca on the covariance matrix
+would be dominated by engine capacity therefore we have to scale the data (or use
+the correlation) before doing PCA.
+
+
+```{r}
+Xtrain.pca.unscaled = PcaClassic(Xtrain[,continousCols])
+summary(Xtrain.pca.unscaled)
+Xtrain.pca.unscaled$loadings
+```
+Most of the variance gets captured by the first PC and the loadings aren't interesting because
+of the poor scaling.
+
+```{r}
+Xtrain.pca.scaled = PcaClassic(Xtrain[,continousCols],scale =TRUE,crit.pca.distances=0.99)
+summary(Xtrain.pca.scaled)
+Xtrain.pca.scaled$loadings
+```
+In would save 3 PC, the first 2 for sure because they capture a lot variances and
+the third because it is basically the noise level (look loadings) which is a variable
+that sticks out.
+
+## biplots PCA
+```{r}
+biplot(Xtrain.pca.scaled,c(1,2))
+biplot(Xtrain.pca.scaled,c(1,3))
+biplot(Xtrain.pca.scaleds,c(2,3))
+```
+The biplots aren't very clear and we can't recognize any categorical variables in
+them.
+
+## Compare to robust PCA
+
+
+So we do robust PCA with PcaHubert 
+```{r}
+Xtrain.robpca <-PcaHubert(Xtrain[,continousCols], k=3,scale= mad,crit.pca.distances=0.99)
+summary(Xtrain.robpca)
+Xtrain.robpca$loadings
+```
+Looks very similar to not robust PCA maybe the loading of nox emissions
+is a little bit of.
+
+Now we're going to use robust PCA to check for PCA outliers:
+```{r}
+plot(Xtrain.pca.scaled,pch=19)
+plot(Xtrain.robpca,pch=19)
+```
+```{r}
+bad_leverage_points <- c(7036,2332,8906,36079)
+good_leverage_points <- c(12481,36784)
+Xtrain[bad_leverage_points,]
+Xtrain[good_leverage_points,]
+Xtrain[,0] 
+names(Xtrain)
+```
+TODO discuss outliers
+We are going to continue with the robust PCA.
+
+## scores of validation set
+
+(Ok I cant get this to work either ...)
+```{r}
+names(Xtrain.robpca)
+Xtrain[1,][,continousCols]
+Xtrain[1,][,continousCols]%*% Xtrain.robpca$loadings
+```
+## outlier map validation set
+TODO
+# Clustering
+## partitioning cluster analysis
+TODO : PAM
+TODO : K means
+## hierarchical clustering observations
+TODO : do all types of clustering
+TODO : hdbscan
+
+## hierarchical clustering variables
+TODO : do all types of clustering
+
+## clustering that corresponds to fuel
+
+
+# Linear regression
+
+## linear model
+TODO : lasso of lar
+(response is co2)
+
+
+## assumptions linear model
+
+## ANOVA
+
+## metrics
+
+## confidence interval
+
+# Classification 
+
+## LDA and QDA
+
+## knn
+
+## preffered model
+
+
 
 
 
