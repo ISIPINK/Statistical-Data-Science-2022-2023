@@ -8,6 +8,9 @@ library(ggplot2)
 library(robustbase)
 library(rrcov)
 library(reshape2)
+library(cluster)
+library(stats)
+library(dbscan)
 ```
 
 # EDA 
@@ -228,9 +231,11 @@ the correlation) before doing PCA.
 
 
 ```{r}
+{
 Xtrain.pca.unscaled = PcaClassic(Xtrain[,continousCols])
-summary(Xtrain.pca.unscaled)
+print(summary(Xtrain.pca.unscaled))j
 Xtrain.pca.unscaled$loadings
+}
 ```
 Most of the variance gets captured by the first PC and the loadings aren't interesting because
 of the poor scaling.
@@ -251,7 +256,21 @@ biplot(Xtrain.pca.scaled,c(1,3))
 biplot(Xtrain.pca.scaled,c(2,3))
 ```
 The biplots aren't very clear and we can't recognize any categorical variables in
-them.
+them. Let's plot them again.
+
+```{r}
+# plotting scores
+score_plot <- data.frame(Xtrain.pca.scaled$scores)
+score_plot$fuel <-Xtrain[,"fuel_type"]
+score_plot$type <-Xtrain[,"transmission_type"]
+score_plot$euro <-Xtrain[,"euro_standard"]
+ggplot(score_plot ,aes(PC1,PC2, color = fuel)) + geom_point(alpha = 0.5)
+ggplot(score_plot ,aes(PC1,PC2, color = type)) + geom_point(alpha = 0.5)
+ggplot(score_plot ,aes(PC1,PC2, color = euro)) + geom_point(alpha = 0.5)
+ggplot(score_plot ,aes(PC2,PC3)) + geom_point(alpha = 0.5)
+ggplot(score_plot ,aes(PC1,PC3)) + geom_point(alpha = 0.5)
+```
+We could only recognieze the fuel type out of the principal components.
 
 ## Compare to robust PCA
 
@@ -274,8 +293,8 @@ plot(Xtrain.robpca,pch=19)
 ```{r}
 bad_leverage_points <- c("7036","2332","8906","36079")
 good_leverage_points <- c("12481","36784")
-subset.trans[bad_leverage_points,]
-subset.trans[good_leverage_points,]
+print(subset.trans[bad_leverage_points,])
+print(subset.trans[good_leverage_points,])
 ```
 
 There are a lot of bad leverage points so we choose to continue with the robust PCA.
@@ -313,16 +332,51 @@ ggplot(outlier_map,aes(sd,od, color = set)) +
 
 ```
 This outlier map isn't the same as from the robust PCA. As you can see 
-the distribution of the Xval is barely different from the Xtrain on outlier
+the distribution of the Xval is barely different from the Xtrain on the outlier
 map this validates the robust PCA.
 
 # Clustering
 ## partitioning cluster analysis
-TODO : PAM
-TODO : K means
+###kmeans
+```{r}
+for (amount_centers in 1:6) {
+  Xtrain.kmeans <-kmeans(Xtrain[,continousCols], amount_centers)
+  pairs(Xtrain.robpca.scores, col=Xtrain.kmeans$cluster)
+}
+```
+### pam
+```{r}
+for (amount_centers in 1:6) {
+  Xtrain.pam <-pam(Xtrain[,continousCols], k = amount_centers, metric="manhattan")
+  pairs(Xtrain.robpca.scores, col=Xtrain.pam$clustering)
+}
+```
+### conclusion
+The only categorical variable you can recognize on the score plot was fuel
+the other if you would plot them are overlapping ruling them out. Meaning
+neither pam or kmeans recogized any categorical variables. 
+
+We would go with 1 cluster here. 
+
 ## hierarchical clustering observations
 TODO : do all types of clustering
 TODO : hdbscan
+### hdbscan
+```{r}
+for (pts in c(10,15,20,25,30)) {
+  Xtrain.hdbscan <- hdbscan(Xtrain[,continousCols],minPts = pts)
+  pairs(Xtrain.robpca.scores, col=Xtrain.hdbscan$cluster)
+  plot(Xtrain.hdbscan)
+}
+```
+### hclust
+```{r}
+for (mt in c("average","complete","single","median","ward.D")) {
+  Xtrain.hclust <- hclust(dist(Xtrain[,continousCols]),method =mt)
+  plot(Xtrain.hclust, main = mt)
+}
+```
+
 
 ## hierarchical clustering variables
 TODO : do all types of clustering
