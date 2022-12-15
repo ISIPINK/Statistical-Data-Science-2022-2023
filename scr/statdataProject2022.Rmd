@@ -11,6 +11,7 @@ library(reshape2)
 library(cluster)
 library(stats)
 library(dbscan)
+library(agnes)
 ```
 
 # EDA 
@@ -371,18 +372,46 @@ for (pts in c(10,15,20,25,30)) {
 ```
 ### hclust
 ```{r}
-for (mt in c("average","complete","single","median","ward.D")) {
-  Xtrain.hclust <- hclust(dist(Xtrain[,continousCols]),method =mt)
+for (mt in c("average","complete","ward.D")) {
+  Xtrain.hclust <- hclust(dist(Xtrain.robpca.scaled),method =mt)
   plot(Xtrain.hclust, main = mt)
+  rect.hclust(Xtrain.hclust, k = 7)
+  for (amount_cluster in c(2,3,4)){
+  pairs(Xtrain.robpca.scores, col=cutree(Xtrain.hclust,k=amount_cluster), main = paste(c(mt,amount_centers)))
+  }
 }
 ```
 
 
 ## hierarchical clustering variables
-TODO : do all types of clustering
+
+```{r}
+for (mt in c("average","complete","ward")) {
+  Xtrain.var.agnes <- agnes(cor(Xtrain[,continousCols]), method = mt)
+  plot(Xtrain.var.agnes, main = mt)
+  rect.hclust(Xtrain.var.agnes, k = 3)
+}
+```
 
 ## clustering that corresponds to fuel
+Hclust with ward found clustering that correspond with fuel type.
+```{r}
+Xtrain.hclust.ward.dendo <-as.dendrogram(hclust(dist(Xtrain.robpca.scaled), method = "ward.D"))
+Xtrain.var.agnes.ward.dendo <- as.dendrogram(agnes(cor(Xtrain[,continousCols]), method = "ward"))
 
+Xtrain.hclust.ward <-cutree(hclust(dist(Xtrain.robpca.scaled), method = "ward.D"), k = 2)
+Xtrain.var.agnes.ward <- cutree(agnes(cor(Xtrain[,continousCols]), method = "ward"),k=3)
+
+Xtrain.sort_cluster <- Xtrain[,continousCols][order(Xtrain.hclust.ward),order(Xtrain.var.agnes.ward)]
+Xtrain.sort_cluster.scaled <- Xtrain.robpca.scaled[order(Xtrain.hclust.ward),order(Xtrain.var.agnes.ward)]
+#Xtrain.sort_cluster.melt <- melt(Xtrain.sort_cluster)
+#Xtrain.sort_cluster.melt$idu <- as.numeric(row.names(Xtrain.sort_cluster.melt))
+#ggplot(Xtrain.sort_cluster.melt,aes(variable,y =idu, fill = value))+geom_tile()
+
+heatmap(data.matrix(Xtrain.sort_cluster),Rowv = NA,Colv = NA )
+heatmap(data.matrix(Xtrain.sort_cluster.scaled),Rowv = NA,Colv = NA)
+```
+On the heatmap you can clearly see the conditional distribution on fuel and they are similar for similar variables.
 
 # Linear regression
 
