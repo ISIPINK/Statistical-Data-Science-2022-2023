@@ -37,6 +37,7 @@ ggplot(subset_cars,aes(factor((nox_emissions*10)%%10)))+ geom_bar()
 # normal rounding:
 ggplot(subset_cars,aes(factor((co2*10)%%10)))+ geom_bar()
 
+
 ```
 It would be interesting to see if rounding can be predicted or is useful.
 ## checking for duplicates
@@ -247,7 +248,7 @@ that sticks out.
 ```{r}
 biplot(Xtrain.pca.scaled,c(1,2))
 biplot(Xtrain.pca.scaled,c(1,3))
-biplot(Xtrain.pca.scaleds,c(2,3))
+biplot(Xtrain.pca.scaled,c(2,3))
 ```
 The biplots aren't very clear and we can't recognize any categorical variables in
 them.
@@ -269,27 +270,52 @@ Now we're going to use robust PCA to check for PCA outliers:
 plot(Xtrain.pca.scaled,pch=19)
 plot(Xtrain.robpca,pch=19)
 ```
+
 ```{r}
-bad_leverage_points <- c(7036,2332,8906,36079)
-good_leverage_points <- c(12481,36784)
-Xtrain[bad_leverage_points,]
-Xtrain[good_leverage_points,]
-Xtrain[,0] 
-names(Xtrain)
+bad_leverage_points <- c("7036","2332","8906","36079")
+good_leverage_points <- c("12481","36784")
+subset.trans[bad_leverage_points,]
+subset.trans[good_leverage_points,]
 ```
-TODO discuss outliers
-We are going to continue with the robust PCA.
+
+There are a lot of bad leverage points so we choose to continue with the robust PCA.
 
 ## scores of validation set
 
-(Ok I cant get this to work either ...)
 ```{r}
-names(Xtrain.robpca)
-Xtrain[1,][,continousCols]
-Xtrain[1,][,continousCols]%*% Xtrain.robpca$loadings
+Xval.robpca.scaled <- scale(Xval[,continousCols],center = Xtrain.robpca$center, scale= Xtrain.robpca$scale)
+Xval.robpca.scores <- Xval.robpca.scaled %*% Xtrain.robpca$loadings
+Xval.robpca.pred <- t(t(Xval.robpca.scores%*%t(Xtrain.robpca$loadings)) + Xtrain.robpca$center/Xtrain.robpca$scale)
+
+Xtrain.robpca.scaled <- scale(Xtrain[,continousCols],center = Xtrain.robpca$center, scale= Xtrain.robpca$scale)
+Xtrain.robpca.scores <- Xtrain.robpca.scaled %*% Xtrain.robpca$loadings
+Xtrain.robpca.pred <- t(t(Xtrain.robpca.scores%*%t(Xtrain.robpca$loadings)) + Xtrain.robpca$center/Xtrain.robpca$scale)
 ```
+
 ## outlier map validation set
-TODO
+To make an outlier map we need the orthogonal and score distances.
+```{r}
+euclnorm <- function(y) sqrt(sum(y^2))
+Xval.robpca.od <- apply(Xval.robpca.scaled - Xval.robpca.pred, 1, euclnorm)
+Xval.robpca.sd <- sqrt(mahalanobis(Xval.robpca.scores, center = 0, diag(Xtrain.robpca$eigenvalues)))
+
+Xtrain.robpca.od <- apply(Xtrain.robpca.scaled - Xtrain.robpca.pred, 1, euclnorm)
+Xtrain.robpca.sd <- sqrt(mahalanobis(Xtrain.robpca.scores, center = 0, diag(Xtrain.robpca$eigenvalues)))
+
+outlier_map <- data.frame(
+  c(Xval.robpca.od,Xtrain.robpca.od),
+  c(Xval.robpca.sd,Xtrain.robpca.sd),
+  c(rep("Xval", 1500), rep("Xtrain",1500)))
+names(outlier_map) <- c("od","sd","set")
+ggplot(outlier_map,aes(sd,od, color = set)) + 
+  geom_point(alpha = 0.3, size = 1)+
+  ggtitle("outlier map Xval vs Xtrain")
+
+```
+This outlier map isn't the same as from the robust PCA. As you can see 
+the distribution of the Xval is barely different from the Xtrain on outlier
+map this validates the robust PCA.
+
 # Clustering
 ## partitioning cluster analysis
 TODO : PAM
