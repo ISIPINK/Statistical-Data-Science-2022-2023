@@ -11,7 +11,6 @@ library(reshape2)
 library(cluster)
 library(stats)
 library(dbscan)
-library(agnes)
 ```
 
 # EDA 
@@ -234,7 +233,7 @@ the correlation) before doing PCA.
 ```{r}
 {
 Xtrain.pca.unscaled = PcaClassic(Xtrain[,continousCols])
-print(summary(Xtrain.pca.unscaled))j
+print(summary(Xtrain.pca.unscaled))
 Xtrain.pca.unscaled$loadings
 }
 ```
@@ -265,9 +264,11 @@ score_plot <- data.frame(Xtrain.pca.scaled$scores)
 score_plot$fuel <-Xtrain[,"fuel_type"]
 score_plot$type <-Xtrain[,"transmission_type"]
 score_plot$euro <-Xtrain[,"euro_standard"]
+score_plot$combined <- interaction(score_plot$fuel,score_plot$type)
 ggplot(score_plot ,aes(PC1,PC2, color = fuel)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC1,PC2, color = type)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC1,PC2, color = euro)) + geom_point(alpha = 0.5)
+ggplot(score_plot ,aes(PC1,PC2, color = combined)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC2,PC3)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC1,PC3)) + geom_point(alpha = 0.5)
 ```
@@ -341,14 +342,15 @@ map this validates the robust PCA.
 ###kmeans
 ```{r}
 for (amount_centers in 1:6) {
-  Xtrain.kmeans <-kmeans(Xtrain[,continousCols], amount_centers)
+  Xtrain.kmeans <-kmeans(Xtrain.robpca.scaled, amount_centers)
   pairs(Xtrain.robpca.scores, col=Xtrain.kmeans$cluster)
 }
 ```
+
 ### pam
 ```{r}
 for (amount_centers in 1:6) {
-  Xtrain.pam <-pam(Xtrain[,continousCols], k = amount_centers, metric="manhattan")
+  Xtrain.pam <-pam(Xtrain.robpca.scaled, k = amount_centers, metric="manhattan")
   pairs(Xtrain.robpca.scores, col=Xtrain.pam$clustering)
 }
 ```
@@ -364,12 +366,15 @@ TODO : do all types of clustering
 TODO : hdbscan
 ### hdbscan
 ```{r}
-for (pts in c(10,15,20,25,30)) {
-  Xtrain.hdbscan <- hdbscan(Xtrain[,continousCols],minPts = pts)
-  pairs(Xtrain.robpca.scores, col=Xtrain.hdbscan$cluster)
+for (pts in c(5,10,15,20,25)) {
+  Xtrain.hdbscan <- hdbscan(Xtrain.robpca.scaled,minPts = pts)
+  pairs(Xtrain.robpca.scores, col=Xtrain.hdbscan$cluster, main =pts)
   plot(Xtrain.hdbscan)
 }
 ```
+```{r}
+```
+
 ### hclust
 ```{r}
 for (mt in c("average","complete","ward.D")) {
@@ -377,7 +382,7 @@ for (mt in c("average","complete","ward.D")) {
   plot(Xtrain.hclust, main = mt)
   rect.hclust(Xtrain.hclust, k = 7)
   for (amount_cluster in c(2,3,4)){
-  pairs(Xtrain.robpca.scores, col=cutree(Xtrain.hclust,k=amount_cluster), main = paste(c(mt,amount_centers)))
+  pairs(Xtrain.robpca.scores, col=cutree(Xtrain.hclust,k=amount_cluster), main = mt)
   }
 }
 ```
@@ -396,8 +401,8 @@ for (mt in c("average","complete","ward")) {
 ## clustering that corresponds to fuel
 Hclust with ward found clustering that correspond with fuel type.
 ```{r}
-Xtrain.hclust.ward.dendo <-as.dendrogram(hclust(dist(Xtrain.robpca.scaled), method = "ward.D"))
-Xtrain.var.agnes.ward.dendo <- as.dendrogram(agnes(cor(Xtrain[,continousCols]), method = "ward"))
+#Xtrain.hclust.ward.dendo <-as.dendrogram(hclust(dist(Xtrain.robpca.scaled), method = "ward.D"))
+#Xtrain.var.agnes.ward.dendo <- as.dendrogram(agnes(cor(Xtrain[,continousCols]), method = "ward"))
 
 Xtrain.hclust.ward <-cutree(hclust(dist(Xtrain.robpca.scaled), method = "ward.D"), k = 2)
 Xtrain.var.agnes.ward <- cutree(agnes(cor(Xtrain[,continousCols]), method = "ward"),k=3)
@@ -410,8 +415,16 @@ Xtrain.sort_cluster.scaled <- Xtrain.robpca.scaled[order(Xtrain.hclust.ward),ord
 
 heatmap(data.matrix(Xtrain.sort_cluster),Rowv = NA,Colv = NA )
 heatmap(data.matrix(Xtrain.sort_cluster.scaled),Rowv = NA,Colv = NA)
+
 ```
 On the heatmap you can clearly see the conditional distribution on fuel and they are similar for similar variables.
+
+```{r}
+Xtrain.hdbscan.15 <-hdbscan(Xtrain.robpca.scaled,minPts = 15)
+Xtrain.sort_cluster.scaled.hdbscan <- Xtrain.robpca.scaled[order(Xtrain.hdbscan.15$cluster),order(Xtrain.var.agnes.ward)]
+heatmap(data.matrix(Xtrain.sort_cluster.scaled.hdbscan),Rowv = NA,Colv = NA)
+```
+
 
 # Linear regression
 
