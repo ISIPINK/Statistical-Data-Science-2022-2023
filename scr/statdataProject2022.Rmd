@@ -1,6 +1,6 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output: pdf_document
 ---
 
 ```{r}
@@ -11,15 +11,19 @@ library(reshape2)
 library(cluster)
 library(stats)
 library(dbscan)
+library(lars)
 ```
 
-# EDA 
+# EDA
+
 ## loading data set
+
 ```{r}
 cars_data<-read.csv("~/GitHub/Statistical-Data-Science-Project-Academic-year-2022-2023/cars_data")
 ```
 
 ## generate subset
+
 ```{r}
 set.seed(180901)
 cars_data$euro_standard <- as.factor(cars_data$euro_standard)
@@ -27,6 +31,7 @@ cars_data$transmission_type <- as.factor(cars_data$transmission_type)
 cars_data$fuel_type <- as.factor(cars_data$fuel_type)
 subset_cars = cars_data[sample(nrow(cars_data),3000,replace=FALSE),]
 ```
+
 I reviewed the data set in a csv viewer to get a feel for it. Noise level has weird rounding thing going on.
 
 ```{r}
@@ -42,29 +47,30 @@ ggplot(subset_cars,aes(factor((co2*10)%%10)))+ geom_bar()
 
 
 ```
+
 It would be interesting to see if rounding can be predicted or is useful.
+
 ## checking for duplicates
 
 ```{r}
 #View(subset_cars[duplicated(subset_cars),])
-sum(duplicated(subset_cars))
-sum(duplicated(subset_cars["model"]))
-sum(duplicated(subset_cars[c("urban_metric", "noise_level", "co2")]))
+print(sum(duplicated(subset_cars)))
+print(sum(duplicated(subset_cars["model"])))
+print(sum(duplicated(subset_cars[c("urban_metric", "noise_level", "co2")])))
 ```
+
 OK some duplicates. In theory it shouldn't be impossible ... but IDK if this was intended when gathering the data ... A more in depth study of duplicates could be done using clustering techniques.
 
-
-## Are there missing values?
+## are there missing values?
 
 ```{r}
 sum(is.na(subset_cars))
 ```
 
-## what can I plot? 
+## what can I plot?
 
 ```{r}
 names(subset_cars)
-
 ```
 
 ```{r}
@@ -72,6 +78,7 @@ str(subset_cars)
 ```
 
 ## univariate plots for factor types
+
 ```{r}
 # (for future me) for loop doesn't work and dont plot model
 ggplot(subset_cars ,aes(manufacturer)) + geom_bar(stat ="count")+
@@ -86,8 +93,8 @@ ggplot(subset_cars ,aes(transmission_type)) + geom_bar(stat ="count")+
 ggplot(subset_cars ,aes(fuel_type)) + geom_bar(stat ="count")+
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) 
 
-
 ```
+
 Everything looks balanced minus the manufacturer. From our humble car knowledge we think that there are major differences between cars from different manufacturers (you shouldn't compare a Lamborghini with a mini it just has other stats). This probably gives a problem with balancing (whatever we mean). We are not sure that the counts represents the amount of cars in Europe? Later we'll look into it.
 
 ## plots for numerical types
@@ -104,7 +111,9 @@ ggplot(subset_cars,aes(co_emissions))+ geom_histogram()
 selectNormalNox = (subset_cars$nox_emissions < 1000)
 ggplot(subset_cars[selectNormalNox, ],aes(nox_emissions))+ geom_histogram()
 ```
+
 Everything looks skewed to the right minus the noise emissions (maybe this is because it is on a log scale?). I'll try transforming the noise. Then some outliers (points that ruined my plots so we filterd them out).
+
 ```{r}
 selectBadRows <- !selectNormalNoise | !selectNormalNox
 selectNormalRows <- !selectBadRows
@@ -128,7 +137,9 @@ ggplot(subset.trans,aes(nox_emissions))+ geom_histogram()
 ```{r}
 subset.trans[order(subset.trans$noise_level,decreasing = TRUE), c("manufacturer","noise_level" )][1:20, ]
 ```
+
 ## plots for comparing variables
+
 ```{r}
 ggplot(subset.trans, aes(x = engine_capacity, y = co2, color = transmission_type)) + 
   geom_jitter(alpha = 0.3, width = 100) +
@@ -154,8 +165,9 @@ ggplot(subset.trans, aes(x = engine_capacity, y = noise_level, color = transmiss
   geom_jitter(alpha = 0.3, width=50, height = 0.3 ) +
   facet_grid(~fuel_type)
 ```
-These plot show that there are a lot of (near) linear relationships between variables and that the discrete variables are important. It makes it easy to find interesting rows.
-## intersting rows
+
+These plot show that there are a lot of (near) linear relationships between variables and that the discrete variables are important. It makes it easy to find interesting rows. ## intersting rows
+
 ```{r}
 subset.trans[subset.trans$engine_capacity> 8000,]
 subset.trans[subset.trans$nox_emissions> 200 & subset.trans$fuel_type == "Petrol",]
@@ -163,7 +175,9 @@ subset.trans[subset.trans$co2> 440,]
 ```
 
 # PCA
+
 ## splitting into training and validation
+
 ```{r}
 subset.transNoText <- subset.trans[ , -which(names(subset.trans) %in% c("manufacturer"
 ,"model","description" ))]
@@ -184,8 +198,8 @@ Xval <- na.omit(Xval[!is.na(Xval),])
 nrow(Xtrain)
 nrow(Xval)
 ```
-## PCA on training
 
+## PCA on training
 
 ```{r}
 continousCols <- c("engine_capacity", "urban_metric", "extra_urban_metric", "combined_metric","co2", "noise_level", "co_emissions", "nox_emissions")
@@ -225,10 +239,7 @@ ggplot(melt(round(covMcd(Xtrain[,continousCols], cor = TRUE)$cor,1)),
 
 ```
 
-From the variance heatmap it is clearly seen that pca on the covariance matrix
-would be dominated by engine capacity therefore we have to scale the data (or use
-the correlation) before doing PCA.
-
+From the variance heatmap it is clearly seen that pca on the covariance matrix would be dominated by engine capacity therefore we have to scale the data (or use the correlation) before doing PCA.
 
 ```{r}
 {
@@ -237,26 +248,26 @@ print(summary(Xtrain.pca.unscaled))
 Xtrain.pca.unscaled$loadings
 }
 ```
-Most of the variance gets captured by the first PC and the loadings aren't interesting because
-of the poor scaling.
+
+Most of the variance gets captured by the first PC and the loadings aren't interesting because of the poor scaling.
 
 ```{r}
 Xtrain.pca.scaled = PcaClassic(Xtrain[,continousCols],scale =TRUE,crit.pca.distances=0.99)
 summary(Xtrain.pca.scaled)
 Xtrain.pca.scaled$loadings
 ```
-In would save 3 PC, the first 2 for sure because they capture a lot variances and
-the third because it is basically the noise level (look loadings) which is a variable
-that sticks out.
+
+In would save 3 PC, the first 2 for sure because they capture a lot variances and the third because it is basically the noise level (look loadings) which is a variable that sticks out.
 
 ## biplots PCA
+
 ```{r}
 biplot(Xtrain.pca.scaled,c(1,2))
 biplot(Xtrain.pca.scaled,c(1,3))
 biplot(Xtrain.pca.scaled,c(2,3))
 ```
-The biplots aren't very clear and we can't recognize any categorical variables in
-them. Let's plot them again.
+
+The biplots aren't very clear and we can't recognize any categorical variables in them. Let's plot them again.
 
 ```{r}
 # plotting scores
@@ -272,21 +283,23 @@ ggplot(score_plot ,aes(PC1,PC2, color = combined)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC2,PC3)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC1,PC3)) + geom_point(alpha = 0.5)
 ```
+
 We could only recognieze the fuel type out of the principal components.
 
 ## Compare to robust PCA
 
+So we do robust PCA with PcaHubert
 
-So we do robust PCA with PcaHubert 
 ```{r}
 Xtrain.robpca <-PcaHubert(Xtrain[,continousCols], k=3,scale= mad,crit.pca.distances=0.99)
 summary(Xtrain.robpca)
 Xtrain.robpca$loadings
 ```
-Looks very similar to not robust PCA maybe the loading of nox emissions
-is a little bit of.
+
+Looks very similar to not robust PCA maybe the loading of nox emissions is a little bit of.
 
 Now we're going to use robust PCA to check for PCA outliers:
+
 ```{r}
 plot(Xtrain.pca.scaled,pch=19)
 plot(Xtrain.robpca,pch=19)
@@ -314,7 +327,9 @@ Xtrain.robpca.pred <- t(t(Xtrain.robpca.scores%*%t(Xtrain.robpca$loadings)) + Xt
 ```
 
 ## outlier map validation set
+
 To make an outlier map we need the orthogonal and score distances.
+
 ```{r}
 euclnorm <- function(y) sqrt(sum(y^2))
 Xval.robpca.od <- apply(Xval.robpca.scaled - Xval.robpca.pred, 1, euclnorm)
@@ -333,13 +348,15 @@ ggplot(outlier_map,aes(sd,od, color = set)) +
   ggtitle("outlier map Xval vs Xtrain")
 
 ```
-This outlier map isn't the same as from the robust PCA. As you can see 
-the distribution of the Xval is barely different from the Xtrain on the outlier
-map this validates the robust PCA.
+
+This outlier map isn't the same as from the robust PCA. As you can see the distribution of the Xval is barely different from the Xtrain on the outlier map this validates the robust PCA.
 
 # Clustering
+
 ## partitioning cluster analysis
+
 ###kmeans
+
 ```{r}
 for (amount_centers in 1:6) {
   Xtrain.kmeans <-kmeans(Xtrain.robpca.scaled, amount_centers)
@@ -348,22 +365,24 @@ for (amount_centers in 1:6) {
 ```
 
 ### pam
+
 ```{r}
 for (amount_centers in 1:6) {
   Xtrain.pam <-pam(Xtrain.robpca.scaled, k = amount_centers, metric="manhattan")
   pairs(Xtrain.robpca.scores, col=Xtrain.pam$clustering)
 }
 ```
-### conclusion
-The only categorical variable you can recognize on the score plot was fuel
-the other if you would plot them are overlapping ruling them out. Meaning
-neither pam or kmeans recogized any categorical variables. 
 
-We would go with 1 cluster here. 
+### conclusion
+
+The only categorical variable you can recognize on the score plot was fuel the other if you would plot them are overlapping ruling them out. Meaning neither pam or kmeans recogized any categorical variables.
+
+We would go with 1 cluster here.
 
 ## hierarchical clustering observations
-TODO : do all types of clustering
-TODO : hdbscan
+
+TODO : do all types of clustering TODO : hdbscan ##\# hdbscan
+
 ### hdbscan
 ```{r}
 for (pts in c(5,10,15,20,25)) {
@@ -372,10 +391,9 @@ for (pts in c(5,10,15,20,25)) {
   plot(Xtrain.hdbscan)
 }
 ```
-```{r}
-```
 
 ### hclust
+
 ```{r}
 for (mt in c("average","complete","ward.D")) {
   Xtrain.hclust <- hclust(dist(Xtrain.robpca.scaled),method =mt)
@@ -386,7 +404,6 @@ for (mt in c("average","complete","ward.D")) {
   }
 }
 ```
-
 
 ## hierarchical clustering variables
 
@@ -399,7 +416,9 @@ for (mt in c("average","complete","ward")) {
 ```
 
 ## clustering that corresponds to fuel
+
 Hclust with ward found clustering that correspond with fuel type.
+
 ```{r}
 #Xtrain.hclust.ward.dendo <-as.dendrogram(hclust(dist(Xtrain.robpca.scaled), method = "ward.D"))
 #Xtrain.var.agnes.ward.dendo <- as.dendrogram(agnes(cor(Xtrain[,continousCols]), method = "ward"))
@@ -417,6 +436,7 @@ heatmap(data.matrix(Xtrain.sort_cluster),Rowv = NA,Colv = NA )
 heatmap(data.matrix(Xtrain.sort_cluster.scaled),Rowv = NA,Colv = NA)
 
 ```
+
 On the heatmap you can clearly see the conditional distribution on fuel and they are similar for similar variables.
 
 ```{r}
@@ -425,41 +445,95 @@ Xtrain.sort_cluster.scaled.hdbscan <- Xtrain.robpca.scaled[order(Xtrain.hdbscan.
 heatmap(data.matrix(Xtrain.sort_cluster.scaled.hdbscan),Rowv = NA,Colv = NA)
 ```
 
-
 # Linear regression
 
 ## linear model
-TODO : lasso of lar
-(response is co2)
 
+```{r}
+X <- model.matrix(co2 ~ ., data=subset(Xtrain, select = -inTrain))[,-1]
+y <- Xtrain$co2
+Xtrain.co2.lars.lasso <- lars(X, y, type = "lasso", intercept = TRUE, normalize = TRUE)
+
+plot(Xtrain.co2.lars.lasso)
+names(Xtrain.co2.lars.lasso)
+ggplot(summary(Xtrain.co2.lars.lasso), aes(x = Df,y = Cp, size = Rss )) +geom_point()
+print(Xtrain.co2.lars.lasso)
+```
+```{r}
+Xtrain.co2.lars.lasso.coef = coef(Xtrain.co2.lars.lasso)[4,]
+Xtrain.co2.lars.lasso.coef
+```
 
 ## assumptions linear model
+```{r}
+Xtrain.co2.lars.lasso.residuals3 <- y  - predict(Xtrain.co2.lars.lasso,X,3)$fit
+Xtrain.co2.lars.lasso.residuals4 <- y  - predict(Xtrain.co2.lars.lasso,X,4)$fit
+Xtrain.co2.lars.lasso.residuals5 <- y  - predict(Xtrain.co2.lars.lasso,X,5)$fit
+boxplot(Xtrain.co2.lars.lasso.residuals3,
+        Xtrain.co2.lars.lasso.residuals4,
+        Xtrain.co2.lars.lasso.residuals5)
+boxplot(Xtrain$co2)
+plot(Xtrain.co2.lars.lasso.residuals4, main ="res4")
+qqnorm(Xtrain.co2.lars.lasso.residuals4)
+```
+
 
 ## ANOVA
+We don't know a fast way to do an ANOVA for lars in R. 
+```{r}
+summary(Xtrain.co2.lars.lasso)
+```
 
 ## metrics
 
-## confidence interval
+```{r}
+names(Xtrain.co2.lars.lasso)
+# wut is the difference between SSE and RSS?
 
-# Classification 
+```
+```{r}
+print(paste("R2:",Xtrain.co2.lars.lasso$R2[4]))
+print(paste("RMSE:",sqrt(Xtrain.co2.lars.lasso$RSS[4]/1500)))
+```
+```{r}
+Xv <- model.matrix(co2 ~ ., data=subset(Xval, select = -inTrain))[,-1]
+Xval.co2.lars.lasso.residuals4 <- Xval[,"co2"]  - predict(Xtrain.co2.lars.lasso,Xv,4)$fit
+boxplot(Xval.co2.lars.lasso.residuals4,Xtrain.co2.lars.lasso.residuals4)
+qqnorm(Xval.co2.lars.lasso.residuals4)
+```
+```{r}
+print(paste("RMSEP:",sqrt(sum(Xval.co2.lars.lasso.residuals4^2)/1500)))
+```
+Good results are good results.
+
+## confidence interval
+```{r}
+#test_car <- c(euro_standard4 = 1,
+#             euro_standard5 = 0,
+#             transmission_typeManual =0,
+#             engine_capacity =1924,
+#             fuel_typePetrol =1,
+#             urban_metric =9.899,
+#             extra_urban_metric=6.898,
+#             combined_metric =8.436,
+#             noise_level = 71, #should be transformed
+#             co_emissions=142.35,
+#             nox_emissions= 429)
+#test_car <- data.frame(1,0,0,1924,1,9.899,6.898,8.436, 71,142.35,429)
+#
+#
+#predict(Xtrain.co2.lars.lasso,test_car,4)$fit
+```
+We can't get predict to work ... the way you could find a confidence interval is by using the fact that the conditional distribution of X is approximately normal. The prediction gives the mean and the variance (which we assume to be constant) 
+can be estimated using the residuals of the validation set.
+
+The model is chosen so that is performs well on the majority of the data (or on the underlying distribution you get the data from). The second car has an unusual high engine capacity making the prediction that this model would give
+for it untrustworthy.
+
+# Classification
 
 ## LDA and QDA
 
 ## knn
 
-## preffered model
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## prefered model
