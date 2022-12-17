@@ -14,6 +14,7 @@ library(dbscan)
 library(lars)
 library(classmap)
 library(class)
+library(caret)
 ```
 
 # EDA
@@ -588,10 +589,41 @@ stackedplot(Xval.robqda)
 ## knn
 
 ```{r}
-Xtrain.knn <- vcr.knn.train(Xtrain[,c("engine_capacity","urban_metric","nox_emissions")], Xtrain$euro_standard, 25)
-confmat.vcr(Xtrain.knn)
-stackedplot(Xtrain.knn)
+Xtrain.knn <- knn(train = Xtrain[,c("engine_capacity","urban_metric","nox_emissions")], test=Xval[,c("engine_capacity","urban_metric","nox_emissions")],, cl = Xtrain$euro_standard)
+control <- trainControl(method = "cv", number = 20)
+grid <- expand.grid(k = 1:20)
+
+results <- train(x = Xtrain[,c("engine_capacity","urban_metric","nox_emissions")], y = Xtrain$euro_standard, method = "knn", trControl = control, tuneGrid = grid)
+# Print the results
+print(results)
+
+```
+```{r}
+Xtrain.knn1 <- vcr.knn.train(Xtrain[,c("engine_capacity","urban_metric","nox_emissions")], Xtrain$euro_standard, k=1)
+confmat.vcr(Xtrain.knn1, cutoff = 0.99)
+stackedplot(Xtrain.knn1, separSize = 1.5, minSize = 1, showLegend = TRUE)
+```
+```{r}
+Xval.knn1 <- vcr.knn.newdata(Xval[,c("engine_capacity","urban_metric","nox_emissions")], Xval$euro_standard,Xtrain.knn1)
+confmat.vcr(Xval.knn1)
+stackedplot(Xval.knn1)
 ```
 
 
 ## prefered model
+
+We prefer knn because of its simplicity and higher accuracy.
+
+```{r}
+Xtrain.diesel <- subset(Xtrain, fuel_type == "Diesel") 
+Xtrain.petrol <- subset(Xtrain, fuel_type == "Petrol") 
+Xtrain.knn1.diesel <- vcr.knn.train(Xtrain.diesel[,c("engine_capacity","urban_metric","nox_emissions")], Xtrain.diesel$euro_standard, k=1)
+Xtrain.knn1.petrol <- vcr.knn.train(Xtrain.petrol[,c("engine_capacity","urban_metric","nox_emissions")], Xtrain.petrol$euro_standard, k=1)
+
+confmat.vcr(Xtrain.knn1.diesel, cutoff = 0.99)
+stackedplot(Xtrain.knn1.diesel, separSize = 1.5, minSize = 1, showLegend = TRUE)
+
+confmat.vcr(Xtrain.knn1.petrol, cutoff = 0.99)
+stackedplot(Xtrain.knn1.petrol, separSize = 1.5, minSize = 1, showLegend = TRUE)
+```
+
