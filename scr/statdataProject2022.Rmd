@@ -12,6 +12,8 @@ library(cluster)
 library(stats)
 library(dbscan)
 library(lars)
+library(classmap)
+library(class)
 ```
 
 # EDA
@@ -164,6 +166,10 @@ ggplot(subset.trans, aes(x = co2, y = urban_metric, color = combined_metric, alp
 ggplot(subset.trans, aes(x = engine_capacity, y = noise_level, color = transmission_type)) +
   geom_jitter(alpha = 0.3, width=50, height = 0.3 ) +
   facet_grid(~fuel_type)
+
+ggplot(subset.trans, aes(x = euro_standard, y = noise_level)) +
+  geom_boxplot() +
+  facet_grid(~fuel_type)
 ```
 
 These plot show that there are a lot of (near) linear relationships between variables and that the discrete variables are important. It makes it easy to find interesting rows. ## intersting rows
@@ -279,9 +285,9 @@ score_plot$combined <- interaction(score_plot$fuel,score_plot$type)
 ggplot(score_plot ,aes(PC1,PC2, color = fuel)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC1,PC2, color = type)) + geom_point(alpha = 0.5)
 ggplot(score_plot ,aes(PC1,PC2, color = euro)) + geom_point(alpha = 0.5)
-ggplot(score_plot ,aes(PC1,PC2, color = combined)) + geom_point(alpha = 0.5)
-ggplot(score_plot ,aes(PC2,PC3)) + geom_point(alpha = 0.5)
-ggplot(score_plot ,aes(PC1,PC3)) + geom_point(alpha = 0.5)
+#ggplot(score_plot ,aes(PC1,PC2, color = combined)) + geom_point(alpha = 0.5)
+ggplot(score_plot ,aes(PC2,PC3, color = euro)) + geom_point(alpha = 0.5)
+ggplot(score_plot ,aes(PC1,PC3, color = euro)) + geom_point(alpha = 0.5)
 ```
 
 We could only recognieze the fuel type out of the principal components.
@@ -524,7 +530,7 @@ Good results are good results.
 #
 #predict(Xtrain.co2.lars.lasso,test_car,4)$fit
 ```
-We can't get predict to work ... the way you could find a confidence interval is by using the fact that the conditional distribution of X is approximately normal. The prediction gives the mean and the variance (which we assume to be constant) 
+We can't get predict to work ... the way you could find a confidence interval is by using the fact that the conditional distribution of X is approximately normal (1 of the assumptions that we checked). The prediction gives the mean and the variance (which we assume to be constant) 
 can be estimated using the residuals of the validation set.
 
 The model is chosen so that is performs well on the majority of the data (or on the underlying distribution you get the data from). The second car has an unusual high engine capacity making the prediction that this model would give
@@ -533,7 +539,59 @@ for it untrustworthy.
 # Classification
 
 ## LDA and QDA
+```{r}
+ggplot(subset.trans, aes(x = urban_metric, y = co_emissions, color = euro_standard)) + 
+  geom_jitter(alpha = 0.3 ) +
+  facet_grid(~fuel_type)
+
+ggplot(subset.trans, aes(x = engine_capacity, y = noise_level, color = euro_standard)) +
+  geom_jitter(alpha = 0.3, width=50, height = 0.3 ) +
+  facet_grid(~fuel_type)
+
+ggplot(subset.trans, aes(x = engine_capacity, y = nox_emissions, color = euro_standard)) +
+  geom_jitter(alpha = 0.3, width=100, height = 0.3, size = 0.8 ) +
+  facet_grid(~fuel_type)
+```
+
+### LDA
+
+
+```{r}
+Xtrain.roblda<- vcr.da.train(Xtrain[,c("engine_capacity","urban_metric","nox_emissions")], Xtrain$euro_standard, rule = "LDA",estmethod = 'DetMCD')
+table(Xtrain$euro_standard) 
+confmat.vcr(Xtrain.roblda, cutoff = 0.99)
+stackedplot(Xtrain.roblda, separSize = 1.5, minSize = 1, showLegend = TRUE)
+```
+
+```{r}
+Xval.roblda <- vcr.da.newdata(Xval[,c("engine_capacity","urban_metric","nox_emissions")], Xval$euro_standard,Xtrain.roblda)
+confmat.vcr(Xval.roblda)
+stackedplot(Xval.roblda)
+```
+
+### QDA
+
+```{r}
+# ill conditioned
+#Xtrain.robqda<- vcr.da.train(Xtrain[,c("engine_capacity","urban_metric","noise_level","nox_emissions")], Xtrain$euro_standard, rule = "QDA",estmethod = 'DetMCD')
+Xtrain.robqda<- vcr.da.train(Xtrain[,c("urban_metric","nox_emissions")], Xtrain$euro_standard, rule = "QDA",estmethod = 'DetMCD')
+table(Xtrain$euro_standard) 
+confmat.vcr(Xtrain.robqda, cutoff = 0.99)
+stackedplot(Xtrain.robqda, separSize = 1.5, minSize = 1, showLegend = TRUE)
+```
+```{r}
+Xval.robqda <- vcr.da.newdata(Xval[,c("urban_metric","nox_emissions")], Xval$euro_standard,Xtrain.robqda)
+confmat.vcr(Xval.robqda)
+stackedplot(Xval.robqda)
+```
 
 ## knn
+
+```{r}
+Xtrain.knn <- vcr.knn.train(Xtrain[,c("engine_capacity","urban_metric","nox_emissions")], Xtrain$euro_standard, 25)
+confmat.vcr(Xtrain.knn)
+stackedplot(Xtrain.knn)
+```
+
 
 ## prefered model
