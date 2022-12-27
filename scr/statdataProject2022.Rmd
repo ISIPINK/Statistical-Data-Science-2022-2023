@@ -48,8 +48,6 @@ ggplot(subset_cars,aes(factor((co_emissions*10)%%10)))+ geom_bar()
 ggplot(subset_cars,aes(factor((nox_emissions*10)%%10)))+ geom_bar()
 # normal rounding:
 ggplot(subset_cars,aes(factor((co2*10)%%10)))+ geom_bar()
-
-
 ```
 
 It would be interesting to see if rounding can be predicted or is useful.
